@@ -9,7 +9,7 @@
         <div class="flex items-center gap-3">
             <i data-lucide="brain" class="h-8 w-8 text-blue-600"></i>
             <div>
-                <h1 class="text-xl font-bold text-gray-900">Cerebro Companion test update</h1>
+                <h1 class="text-xl font-bold text-gray-900">Cerebro Companion</h1>
                 <p class="text-sm text-gray-500">Lokale dataverwerking <span id="appVersion" class="text-xs text-gray-400"></span></p>
             </div>
         </div>
@@ -323,7 +323,7 @@ document.addEventListener('DOMContentLoaded', function() {
     var isProcessing = false;
     var modalMode = 'unlock';
     var keyStatus = '{{ key_status }}';
-    var hasKeys = {{ 'true' if has_keys else 'false' }};
+    var hasKeys = {{ has_keys|tojson }};
     
     // Safe element getter
     function $(id) { return document.getElementById(id); }
