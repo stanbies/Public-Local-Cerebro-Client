@@ -15,28 +15,6 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from datetime import datetime
 
-# Check if cerebro_care is installed before importing modules that depend on it
-def _check_cerebro_care_installed():
-    """Check if cerebro_care package is installed, prompt user if not."""
-    try:
-        import cerebro_care
-        return True
-    except ImportError:
-        print("\n" + "="*60)
-        print("ERROR: cerebro_care package is not installed!")
-        print("="*60)
-        print("\nThis package is required for Cerebro Companion to work.")
-        print("\nTo install it, run the following command in your terminal:")
-        print("\n  pip install git+https://<GITHUB_TOKEN>@github.com/stanbies/Cerebro_Algorithm_V2.git")
-        print("\nReplace <GITHUB_TOKEN> with your GitHub personal access token.")
-        print("\nIf you're using Docker, make sure GITHUB_TOKEN is set in your .env file")
-        print("and rebuild the container with: docker-compose build --no-cache")
-        print("="*60 + "\n")
-        input("Press Enter to exit...")
-        sys.exit(1)
-
-_check_cerebro_care_installed()
-
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles

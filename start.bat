@@ -24,6 +24,43 @@ if %errorlevel% neq 0 (
 echo [OK] Docker Desktop is actief
 echo.
 
+:: Check if GITHUB_TOKEN is set in .env file
+set GITHUB_TOKEN_SET=false
+if exist ".env" (
+    findstr /C:"GITHUB_TOKEN=" .env >nul 2>&1
+    if !errorlevel! equ 0 (
+        for /f "tokens=2 delims==" %%a in ('findstr /C:"GITHUB_TOKEN=" .env') do (
+            if not "%%a"=="" set GITHUB_TOKEN_SET=true
+        )
+    )
+)
+
+if "%GITHUB_TOKEN_SET%"=="false" (
+    echo.
+    echo ============================================================
+    echo   FOUT: GITHUB_TOKEN is niet geconfigureerd!
+    echo ============================================================
+    echo.
+    echo   De cerebro_care package kan niet worden geinstalleerd
+    echo   zonder een geldig GitHub token.
+    echo.
+    echo   Oplossing:
+    echo   1. Maak een .env bestand in deze map
+    echo   2. Voeg toe: GITHUB_TOKEN=jouw_github_token
+    echo.
+    echo   Of installeer handmatig:
+    echo   pip install git+https://TOKEN@github.com/stanbies/Cerebro_Algorithm_V2.git
+    echo.
+    echo ============================================================
+    echo.
+    echo Druk op een toets om af te sluiten...
+    pause >nul
+    exit /b 1
+)
+
+echo [OK] GITHUB_TOKEN is geconfigureerd
+echo.
+
 :: Check for updates from GitHub before starting
 echo [INFO] Controleren op updates...
 git fetch origin main >nul 2>&1
@@ -100,12 +137,45 @@ echo.
 echo [OK] Cerebro Companion is gestart!
 echo.
 
-:: Wait for the server to be ready
+:: Wait for the server to be ready (with timeout and crash detection)
 echo [INFO] Wachten tot de server klaar is...
+set WAIT_COUNT=0
 :waitloop
 timeout /t 1 /nobreak >nul
+set /a WAIT_COUNT+=1
+
+:: Check if container is still running
+docker ps -q -f name=cerebro-companion >nul 2>&1
+for /f %%i in ('docker ps -q -f name=cerebro-companion') do set CONTAINER_RUNNING=%%i
+if not defined CONTAINER_RUNNING (
+    echo.
+    echo ============================================================
+    echo   FOUT: Container is gestopt!
+    echo ============================================================
+    echo.
+    echo   Dit kan komen door een ontbrekende cerebro_care package.
+    echo   Controleer of GITHUB_TOKEN correct is in .env
+    echo.
+    echo   Bekijk de logs met: docker logs cerebro-companion
+    echo.
+    echo ============================================================
+    echo.
+    echo Druk op een toets om af te sluiten...
+    pause >nul
+    exit /b 1
+)
+
+:: Check if server is responding
 curl -s http://127.0.0.1:18421/api/keys/status >nul 2>&1
-if %errorlevel% neq 0 goto waitloop
+if %errorlevel% neq 0 (
+    if %WAIT_COUNT% gtr 60 (
+        echo.
+        echo [WAARSCHUWING] Server reageert niet na 60 seconden.
+        echo Bekijk de logs met: docker logs cerebro-companion
+        echo.
+    )
+    goto waitloop
+)
 
 echo [OK] Server is klaar!
 echo.
