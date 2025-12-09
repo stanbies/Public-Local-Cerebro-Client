@@ -76,6 +76,15 @@
                 </button>
                 {% else %}
                 <button
+                    id="deleteMappingsBtn"
+                    class="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 
+                           transition flex items-center gap-2"
+                    title="Verwijder alle patiënt mappings"
+                >
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    Mappings wissen
+                </button>
+                <button
                     id="lockBtn"
                     class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 
                            transition flex items-center gap-2"
@@ -311,6 +320,48 @@
         </div>
     </div>
 </div>
+
+<!-- Delete Mappings Confirmation Modal -->
+<div id="deleteMappingsModal" class="fixed inset-0 modal-backdrop hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <i data-lucide="alert-triangle" class="w-5 h-5 text-red-600"></i>
+                Mappings verwijderen
+            </h3>
+            <button id="closeDeleteModal" class="text-gray-400 hover:text-gray-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        
+        <div class="mb-6">
+            <p class="text-gray-700 mb-2">
+                Weet je zeker dat je alle patiënt mappings wilt verwijderen?
+            </p>
+            <p class="text-sm text-red-600">
+                <strong>Let op:</strong> Deze actie kan niet ongedaan worden gemaakt. 
+                Alle lokaal opgeslagen patiënt-identiteit koppelingen worden permanent verwijderd.
+            </p>
+        </div>
+        
+        <div class="flex gap-2">
+            <button
+                id="cancelDeleteBtn"
+                class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+            >
+                Nee, annuleren
+            </button>
+            <button
+                id="confirmDeleteBtn"
+                class="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 
+                       transition flex items-center justify-center gap-2"
+            >
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                Ja, verwijderen
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
@@ -351,6 +402,11 @@ document.addEventListener('DOMContentLoaded', function() {
     var modalSubmitText = $('modalSubmitText');
     var modalError = $('modalError');
     var modalSpinner = $('modalSpinner');
+    var deleteMappingsBtn = $('deleteMappingsBtn');
+    var deleteMappingsModal = $('deleteMappingsModal');
+    var closeDeleteModal = $('closeDeleteModal');
+    var cancelDeleteBtn = $('cancelDeleteBtn');
+    var confirmDeleteBtn = $('confirmDeleteBtn');
     
     // Drag and drop
     if (dropZone) {
@@ -800,6 +856,64 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Check for updates 3 seconds after page load
     setTimeout(checkForUpdates, 3000);
+    
+    // ========================================
+    // Delete Mappings Modal
+    // ========================================
+    
+    function showDeleteModal() {
+        if (deleteMappingsModal) {
+            deleteMappingsModal.classList.remove('hidden');
+            deleteMappingsModal.classList.add('flex');
+            lucide.createIcons();
+        }
+    }
+    
+    function hideDeleteModal() {
+        if (deleteMappingsModal) {
+            deleteMappingsModal.classList.add('hidden');
+            deleteMappingsModal.classList.remove('flex');
+        }
+    }
+    
+    if (deleteMappingsBtn) {
+        deleteMappingsBtn.addEventListener('click', showDeleteModal);
+    }
+    
+    if (closeDeleteModal) {
+        closeDeleteModal.addEventListener('click', hideDeleteModal);
+    }
+    
+    if (cancelDeleteBtn) {
+        cancelDeleteBtn.addEventListener('click', hideDeleteModal);
+    }
+    
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', function() {
+            confirmDeleteBtn.disabled = true;
+            confirmDeleteBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig...';
+            lucide.createIcons();
+            
+            fetch('/api/mappings', { method: 'DELETE' })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        addLog('info', 'Mappings verwijderd', data.message);
+                        hideDeleteModal();
+                    } else {
+                        addLog('error', 'Verwijderen mislukt', data.detail || 'Onbekende fout');
+                    }
+                })
+                .catch(function(err) {
+                    addLog('error', 'Verwijderen mislukt', err.message);
+                })
+                .finally(function() {
+                    confirmDeleteBtn.disabled = false;
+                    confirmDeleteBtn.innerHTML = '<i data-lucide="trash-2" class="w-4 h-4"></i> Ja, verwijderen';
+                    lucide.createIcons();
+                });
+        });
+    }
     
     console.log('Dashboard initialized successfully');
 }); // End DOMContentLoaded

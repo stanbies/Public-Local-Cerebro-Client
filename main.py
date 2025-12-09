@@ -363,7 +363,18 @@ async def upload_file(file: UploadFile = File(...)):
     
     # Store mappings in memory and save encrypted locally (NEVER sent to cloud)
     vault_mapping = create_mapping_for_vault(result.mappings)
+    
+    # DEBUG: Log mapping details
+    print(f"\n=== MAPPING DEBUG (single file) ===")
+    print(f"New mappings from this file: {len(vault_mapping)}")
+    print(f"New pseudo_ids: {list(vault_mapping.keys())}")
+    print(f"Current mappings before update: {len(app_state.current_mappings)}")
+    print(f"Existing pseudo_ids: {list(app_state.current_mappings.keys())}")
+    
     app_state.current_mappings.update(vault_mapping)
+    
+    print(f"Current mappings after update: {len(app_state.current_mappings)}")
+    print(f"=== END DEBUG ===\n")
     
     # Save mappings to encrypted local storage
     app_state.save_mappings_locally()
@@ -436,7 +447,18 @@ async def upload_files(files: list[UploadFile] = File(...)):
     
     # Store mappings in memory and save encrypted locally (NEVER sent to cloud)
     vault_mapping = create_mapping_for_vault(result.mappings)
+    
+    # DEBUG: Log mapping details
+    print(f"\n=== MAPPING DEBUG (batch) ===")
+    print(f"New mappings from batch: {len(vault_mapping)}")
+    print(f"New pseudo_ids: {list(vault_mapping.keys())}")
+    print(f"Current mappings before update: {len(app_state.current_mappings)}")
+    print(f"Existing pseudo_ids: {list(app_state.current_mappings.keys())}")
+    
     app_state.current_mappings.update(vault_mapping)
+    
+    print(f"Current mappings after update: {len(app_state.current_mappings)}")
+    print(f"=== END DEBUG ===\n")
     
     # Save mappings to encrypted local storage
     app_state.save_mappings_locally()
@@ -535,6 +557,30 @@ async def get_mappings_count():
     return {
         "count": len(app_state.current_mappings),
         "keys_unlocked": app_state.key_manager.is_unlocked if app_state.key_manager else False,
+    }
+
+
+@app.delete("/api/mappings")
+async def delete_all_mappings():
+    """Delete all mappings from memory and local storage."""
+    if not app_state.key_manager.is_unlocked:
+        raise HTTPException(status_code=400, detail="Keys must be unlocked")
+    
+    count = len(app_state.current_mappings)
+    
+    # Clear in-memory mappings
+    app_state.current_mappings = {}
+    
+    # Clear local encrypted storage
+    if app_state.vault_cache:
+        app_state.vault_cache.clear()
+    
+    app_state.add_log("info", "Mappings verwijderd", f"{count} patiënt mapping(s) verwijderd")
+    
+    return {
+        "success": True,
+        "message": f"{count} mapping(s) verwijderd",
+        "deleted_count": count,
     }
 
 
