@@ -8,7 +8,7 @@ Handles:
 - Cloud upload preparation
 """
 
-from .processor import XMLProcessor
+from .processor import XMLProcessor, check_ocr_availability
 from .uploader import CloudUploader
 
-__all__ = ["XMLProcessor", "CloudUploader"]
+__all__ = ["XMLProcessor", "CloudUploader", "check_ocr_availability"]

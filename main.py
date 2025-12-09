@@ -598,6 +598,22 @@ async def get_version():
 
 
 # ============================================================================
+# Diagnostics API
+# ============================================================================
+
+@app.get("/api/diagnostics/ocr")
+async def check_ocr():
+    """Check OCR (Tesseract) availability for PDF text extraction."""
+    from cerebro_care import get_ocr_status
+    status = get_ocr_status()
+    return {
+        "ocr_available": status.get("ocr_available", False),
+        "tesseract_path": status.get("tesseract_path"),
+        "error": status.get("error"),
+    }
+
+
+# ============================================================================
 # Update API
 # ============================================================================
 

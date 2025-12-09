@@ -2,11 +2,13 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies including OCR (Tesseract) for PDF text extraction
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libffi-dev \
     git \
+    tesseract-ocr \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching

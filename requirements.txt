@@ -13,4 +13,8 @@ argon2-cffi>=23.1.0
 httpx>=0.25.0
 aiofiles>=23.2.0
 
+# OCR dependencies (for PDF text extraction in cerebro_care)
+pytesseract>=0.3.10
+pdf2image>=1.16.0
+
 # Cerebro Care package (installed via Dockerfile with GITHUB_TOKEN)
