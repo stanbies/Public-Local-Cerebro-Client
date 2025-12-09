@@ -145,9 +145,9 @@ timeout /t 1 /nobreak >nul
 set /a WAIT_COUNT+=1
 
 :: Check if container is still running
-docker ps -q -f name=cerebro-companion >nul 2>&1
-for /f %%i in ('docker ps -q -f name=cerebro-companion') do set CONTAINER_RUNNING=%%i
-if not defined CONTAINER_RUNNING (
+set CONTAINER_RUNNING=
+for /f %%i in ('docker ps -q -f "name=cerebro-companion"') do set CONTAINER_RUNNING=%%i
+if "%CONTAINER_RUNNING%"=="" (
     echo.
     echo ============================================================
     echo   FOUT: Container is gestopt!
