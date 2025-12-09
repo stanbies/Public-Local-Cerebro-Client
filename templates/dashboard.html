@@ -1,0 +1,807 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Cerebro Companion{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <i data-lucide="brain" class="h-8 w-8 text-blue-600"></i>
+            <div>
+                <h1 class="text-xl font-bold text-gray-900">Cerebro Companion test update</h1>
+                <p class="text-sm text-gray-500">Lokale dataverwerking <span id="appVersion" class="text-xs text-gray-400"></span></p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-4">
+            <div class="text-right">
+                <p class="text-sm font-medium text-gray-900">Dr. {{ fullname }}</p>
+                <p class="text-xs text-gray-500">{{ username }}</p>
+            </div>
+            <button
+                id="logoutBtn"
+                class="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                title="Uitloggen"
+            >
+                <i data-lucide="log-out" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+    <!-- Key Status Card -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6 animate-fade-in-up">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div id="keyStatusIcon" class="w-12 h-12 rounded-full flex items-center justify-center
+                    {% if key_status == 'unlocked' %}bg-green-100{% else %}bg-amber-100{% endif %}">
+                    <i data-lucide="{% if key_status == 'unlocked' %}lock-open{% else %}lock{% endif %}" 
+                       class="w-6 h-6 {% if key_status == 'unlocked' %}text-green-600{% else %}text-amber-600{% endif %}"
+                       id="keyIcon"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Sleutelstatus</h2>
+                    <p id="keyStatusText" class="text-sm {% if key_status == 'unlocked' %}text-green-600{% else %}text-amber-600{% endif %}">
+                        {% if key_status == 'unlocked' %}
+                            Ontgrendeld - Klaar voor verwerking
+                        {% elif has_keys %}
+                            Vergrendeld - Ontgrendel om bestanden te verwerken
+                        {% else %}
+                            Geen sleutels - Genereer eerst sleutels
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            
+            <div class="flex gap-2">
+                {% if not has_keys %}
+                <button
+                    id="generateKeysBtn"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+                           transition flex items-center gap-2"
+                >
+                    <i data-lucide="key" class="w-4 h-4"></i>
+                    Sleutels genereren
+                </button>
+                {% elif key_status == 'locked' %}
+                <button
+                    id="unlockBtn"
+                    class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+                           transition flex items-center gap-2"
+                >
+                    <i data-lucide="unlock" class="w-4 h-4"></i>
+                    Ontgrendelen
+                </button>
+                {% else %}
+                <button
+                    id="lockBtn"
+                    class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 
+                           transition flex items-center gap-2"
+                >
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                    Vergrendelen
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Drop Zone -->
+        <div class="bg-white rounded-xl shadow-md p-6 animate-fade-in-up" style="animation-delay: 0.1s">
+            <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <i data-lucide="upload" class="w-5 h-5 text-blue-600"></i>
+                Bestanden uploaden
+            </h2>
+            
+            <div
+                id="dropZone"
+                class="drop-zone border-2 border-dashed border-gray-300 rounded-xl p-8 
+                       text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50/50
+                       transition-all duration-300"
+            >
+                <div class="flex flex-col items-center gap-3">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                        <i data-lucide="folder-up" class="w-8 h-8 text-blue-600"></i>
+                    </div>
+                    <div>
+                        <p class="font-medium text-gray-700">Sleep XML-bestanden hierheen</p>
+                        <p class="text-sm text-gray-500 mt-1">
+                            of <button id="browseBtn" class="text-blue-600 hover:underline">blader op je computer</button>
+                        </p>
+                        <p class="text-xs text-gray-400 mt-2">Ondersteund: .xml, .pmf, .sumehr</p>
+                    </div>
+                </div>
+                <input type="file" id="fileInput" class="hidden" multiple accept=".xml,.pmf,.sumehr" />
+            </div>
+            
+            <!-- Selected Files -->
+            <div id="selectedFiles" class="mt-4 hidden">
+                <h3 class="text-sm font-medium text-gray-700 mb-2">Geselecteerde bestanden:</h3>
+                <div id="fileList" class="space-y-2"></div>
+                <div class="flex gap-2 mt-4">
+                    <button
+                        id="processBtn"
+                        class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+                               transition flex items-center justify-center gap-2 disabled:opacity-50"
+                    >
+                        <i data-lucide="play" class="w-4 h-4"></i>
+                        Verwerken
+                    </button>
+                    <button
+                        id="clearFilesBtn"
+                        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                    >
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Processing Progress -->
+            <div id="processingProgress" class="mt-4 hidden">
+                <div class="flex items-center gap-3 mb-2">
+                    <i data-lucide="loader-2" class="w-5 h-5 text-blue-600 animate-spin"></i>
+                    <span id="progressText" class="text-sm text-gray-600">Bezig met verwerken...</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div id="progressBar" class="progress-bar bg-blue-600 h-2 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Log Window -->
+        <div class="bg-white rounded-xl shadow-md p-6 animate-fade-in-up" style="animation-delay: 0.2s">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <i data-lucide="scroll-text" class="w-5 h-5 text-blue-600"></i>
+                    Activiteitenlog
+                </h2>
+                <button
+                    id="clearLogsBtn"
+                    class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                >
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    Wissen
+                </button>
+            </div>
+            
+            <div id="logContainer" class="h-80 overflow-y-auto bg-gray-50 rounded-lg p-3 space-y-2 font-mono text-sm">
+                <div class="text-gray-400 text-center py-8">
+                    <i data-lucide="info" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                    <p>Nog geen activiteit</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Key Unlock Modal -->
+<div id="unlockModal" class="fixed inset-0 modal-backdrop hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <i data-lucide="key" class="w-5 h-5 text-blue-600"></i>
+                <span id="modalTitle">Sleutel ontgrendelen</span>
+            </h3>
+            <button id="closeModal" class="text-gray-400 hover:text-gray-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        
+        <p id="modalDescription" class="text-sm text-gray-600 mb-4">
+            Voer je wachtwoordzin in om de privésleutel te ontgrendelen.
+        </p>
+        
+        <form id="passphraseForm">
+            <div class="relative mb-4">
+                <input
+                    type="password"
+                    id="passphraseInput"
+                    placeholder="Wachtwoordzin"
+                    required
+                    minlength="8"
+                    class="w-full px-4 py-2 border rounded-md shadow-sm 
+                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <button
+                    type="button"
+                    id="togglePassphrase"
+                    class="absolute right-3 top-2.5 text-gray-500 hover:text-gray-700"
+                >
+                    <i data-lucide="eye" class="w-5 h-5" id="passphraseEyeIcon"></i>
+                </button>
+            </div>
+            
+            <!-- Confirm passphrase (only for key generation) -->
+            <div id="confirmPassphraseGroup" class="relative mb-4 hidden">
+                <input
+                    type="password"
+                    id="confirmPassphraseInput"
+                    placeholder="Bevestig wachtwoordzin"
+                    minlength="8"
+                    class="w-full px-4 py-2 border rounded-md shadow-sm 
+                           focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+            </div>
+            
+            <div id="modalError" class="text-sm text-red-500 mb-4 hidden"></div>
+            
+            <div class="flex gap-2">
+                <button
+                    type="button"
+                    id="cancelModal"
+                    class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                >
+                    Annuleren
+                </button>
+                <button
+                    type="submit"
+                    id="submitModal"
+                    class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+                           transition flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                    <span id="modalSubmitText">Ontgrendelen</span>
+                    <i data-lucide="loader-2" class="w-4 h-4 animate-spin hidden" id="modalSpinner"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Update Available Modal -->
+<div id="updateModal" class="fixed inset-0 modal-backdrop hidden items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <i data-lucide="download" class="w-5 h-5 text-blue-600"></i>
+                Update beschikbaar
+            </h3>
+            <button id="closeUpdateModal" class="text-gray-400 hover:text-gray-600">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        
+        <div class="mb-4">
+            <div class="flex items-center gap-3 mb-3">
+                <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <i data-lucide="sparkles" class="w-6 h-6 text-blue-600"></i>
+                </div>
+                <div>
+                    <p class="font-medium text-gray-900">Nieuwe versie beschikbaar!</p>
+                    <p class="text-sm text-gray-500">
+                        <span id="currentVersionText">v1.0.0</span> → 
+                        <span id="latestVersionText" class="text-blue-600 font-medium">v1.1.0</span>
+                    </p>
+                </div>
+            </div>
+            
+            <div id="releaseNotesContainer" class="bg-gray-50 rounded-lg p-3 max-h-40 overflow-y-auto hidden">
+                <p class="text-xs text-gray-500 uppercase font-medium mb-1">Release notes</p>
+                <p id="releaseNotesText" class="text-sm text-gray-700 whitespace-pre-wrap"></p>
+            </div>
+        </div>
+        
+        <div class="flex gap-2">
+            <button
+                id="dismissUpdateBtn"
+                class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+            >
+                Later
+            </button>
+            <button
+                id="triggerUpdateBtn"
+                class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
+                       transition flex items-center justify-center gap-2"
+            >
+                <i data-lucide="download" class="w-4 h-4"></i>
+                Updaten
+            </button>
+        </div>
+        
+        <!-- Update instructions (shown after triggering) -->
+        <div id="updateInstructions" class="hidden mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <p class="text-sm text-amber-800 font-medium mb-2">
+                <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
+                Update instructies
+            </p>
+            <p id="updateInstructionsText" class="text-sm text-amber-700"></p>
+            <code id="updateCommandText" class="block mt-2 text-xs bg-amber-100 p-2 rounded font-mono"></code>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Dashboard initializing...');
+    
+    // State
+    var selectedFiles = [];
+    var isProcessing = false;
+    var modalMode = 'unlock';
+    var keyStatus = '{{ key_status }}';
+    var hasKeys = {{ 'true' if has_keys else 'false' }};
+    
+    // Safe element getter
+    function $(id) { return document.getElementById(id); }
+    
+    // Elements
+    var dropZone = $('dropZone');
+    var fileInput = $('fileInput');
+    var browseBtn = $('browseBtn');
+    var selectedFilesDiv = $('selectedFiles');
+    var fileList = $('fileList');
+    var processBtn = $('processBtn');
+    var clearFilesBtn = $('clearFilesBtn');
+    var processingProgress = $('processingProgress');
+    var progressText = $('progressText');
+    var progressBar = $('progressBar');
+    var logContainer = $('logContainer');
+    var clearLogsBtn = $('clearLogsBtn');
+    var unlockModal = $('unlockModal');
+    var passphraseForm = $('passphraseForm');
+    var passphraseInput = $('passphraseInput');
+    var confirmPassphraseGroup = $('confirmPassphraseGroup');
+    var confirmPassphraseInput = $('confirmPassphraseInput');
+    var modalTitle = $('modalTitle');
+    var modalDescription = $('modalDescription');
+    var modalSubmitText = $('modalSubmitText');
+    var modalError = $('modalError');
+    var modalSpinner = $('modalSpinner');
+    
+    // Drag and drop
+    if (dropZone) {
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('dragging');
+        });
+        
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('dragging');
+        });
+        
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('dragging');
+            handleFiles(Array.from(e.dataTransfer.files));
+        });
+        
+        dropZone.addEventListener('click', function() { if(fileInput) fileInput.click(); });
+    }
+    
+    if (browseBtn) {
+        browseBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            if(fileInput) fileInput.click();
+        });
+    }
+    
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            handleFiles(Array.from(fileInput.files));
+        });
+    }
+    
+    function handleFiles(files) {
+        var validFiles = files.filter(function(f) {
+            var ext = f.name.split('.').pop().toLowerCase();
+            return ['xml', 'pmf', 'sumehr'].indexOf(ext) !== -1;
+        });
+        
+        if (validFiles.length === 0) {
+            addLog('warning', 'Geen geldige bestanden', 'Alleen .xml, .pmf en .sumehr bestanden worden ondersteund');
+            return;
+        }
+        
+        selectedFiles = validFiles;
+        updateFileList();
+    }
+    
+    function updateFileList() {
+        if (selectedFiles.length === 0) {
+            selectedFilesDiv.classList.add('hidden');
+            return;
+        }
+        
+        selectedFilesDiv.classList.remove('hidden');
+        fileList.innerHTML = selectedFiles.map((f, i) => `
+            <div class="flex items-center gap-2 bg-gray-100 rounded-lg px-3 py-2">
+                <i data-lucide="file-text" class="w-4 h-4 text-gray-500"></i>
+                <span class="flex-1 truncate text-sm">${f.name}</span>
+                <span class="text-xs text-gray-400">${formatFileSize(f.size)}</span>
+            </div>
+        `).join('');
+        lucide.createIcons();
+    }
+    
+    function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    if (clearFilesBtn) {
+        clearFilesBtn.addEventListener('click', function() {
+            selectedFiles = [];
+            if (fileInput) fileInput.value = '';
+            updateFileList();
+        });
+    }
+    
+    // Process files
+    if (processBtn) {
+        processBtn.addEventListener('click', async function() {
+            if (selectedFiles.length === 0 || isProcessing) return;
+            
+            if (keyStatus !== 'unlocked') {
+                addLog('warning', 'Sleutels vergrendeld', 'Ontgrendel eerst de sleutels om bestanden te verwerken');
+                return;
+            }
+            
+            isProcessing = true;
+            processBtn.disabled = true;
+            if (processingProgress) processingProgress.classList.remove('hidden');
+            
+            var formData = new FormData();
+            selectedFiles.forEach(function(f) { formData.append('files', f); });
+            
+            try {
+                setFileProgress('Bestanden uploaden...', 10);
+                
+                var response = await fetch('/api/ingest/upload-files', {
+                    method: 'POST',
+                    body: formData,
+                });
+                
+                var data = await response.json();
+                
+                if (response.ok) {
+                    setFileProgress('Voltooid!', 100);
+                    addLog('success', 'Verwerking voltooid', 
+                        data.patient_count + ' patiënt(en), ' + data.task_count + ' zorgtaken in ' + data.processing_time_ms + 'ms');
+                    
+                    // Clear files after success
+                    setTimeout(function() {
+                        selectedFiles = [];
+                        if (fileInput) fileInput.value = '';
+                        updateFileList();
+                    }, 1500);
+                } else {
+                    addLog('error', 'Verwerking mislukt', data.detail || 'Onbekende fout');
+                }
+            } catch (err) {
+                addLog('error', 'Netwerkfout', err.message);
+            } finally {
+                isProcessing = false;
+                processBtn.disabled = false;
+                setTimeout(function() {
+                    if (processingProgress) processingProgress.classList.add('hidden');
+                    if (progressBar) progressBar.style.width = '0%';
+                }, 2000);
+            }
+        });
+    }
+    
+    function setFileProgress(text, percent) {
+        progressText.textContent = text;
+        progressBar.style.width = percent + '%';
+    }
+    
+    // Logs
+    function addLog(level, message, details = '') {
+        const icons = {
+            info: 'info',
+            success: 'check-circle',
+            warning: 'alert-triangle',
+            error: 'x-circle'
+        };
+        const colors = {
+            info: 'text-blue-600',
+            success: 'text-green-600',
+            warning: 'text-amber-600',
+            error: 'text-red-600'
+        };
+        
+        const timestamp = new Date().toLocaleTimeString('nl-BE');
+        const logEntry = document.createElement('div');
+        logEntry.className = 'log-entry flex items-start gap-2 p-2 bg-white rounded border border-gray-200';
+        logEntry.innerHTML = `
+            <i data-lucide="${icons[level]}" class="w-4 h-4 mt-0.5 ${colors[level]} flex-shrink-0"></i>
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                    <span class="font-medium text-gray-900">${message}</span>
+                    <span class="text-xs text-gray-400">${timestamp}</span>
+                </div>
+                ${details ? `<p class="text-xs text-gray-500 mt-0.5 truncate">${details}</p>` : ''}
+            </div>
+        `;
+        
+        // Remove placeholder if present
+        const placeholder = logContainer.querySelector('.text-gray-400.text-center');
+        if (placeholder) placeholder.remove();
+        
+        logContainer.insertBefore(logEntry, logContainer.firstChild);
+        lucide.createIcons();
+    }
+    
+    clearLogsBtn.addEventListener('click', async () => {
+        await fetch('/api/logs', { method: 'DELETE' });
+        logContainer.innerHTML = `
+            <div class="text-gray-400 text-center py-8">
+                <i data-lucide="info" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                <p>Nog geen activiteit</p>
+            </div>
+        `;
+        lucide.createIcons();
+    });
+    
+    // Load initial logs
+    async function loadLogs() {
+        try {
+            const response = await fetch('/api/logs?limit=20');
+            const data = await response.json();
+            
+            if (data.logs && data.logs.length > 0) {
+                logContainer.innerHTML = '';
+                data.logs.reverse().forEach(log => {
+                    addLog(log.level, log.message, log.details);
+                });
+            }
+        } catch (err) {
+            console.error('Failed to load logs:', err);
+        }
+    }
+    loadLogs();
+    
+    // Key management
+    const unlockBtn = document.getElementById('unlockBtn');
+    const lockBtn = document.getElementById('lockBtn');
+    const generateKeysBtn = document.getElementById('generateKeysBtn');
+    
+    if (unlockBtn) {
+        unlockBtn.addEventListener('click', () => openModal('unlock'));
+    }
+    
+    if (lockBtn) {
+        lockBtn.addEventListener('click', async () => {
+            await fetch('/api/keys/lock', { method: 'POST' });
+            window.location.reload();
+        });
+    }
+    
+    if (generateKeysBtn) {
+        generateKeysBtn.addEventListener('click', () => openModal('generate'));
+    }
+    
+    function openModal(mode) {
+        modalMode = mode;
+        passphraseInput.value = '';
+        confirmPassphraseInput.value = '';
+        modalError.classList.add('hidden');
+        
+        if (mode === 'generate') {
+            modalTitle.textContent = 'Sleutels genereren';
+            modalDescription.textContent = 'Kies een sterke wachtwoordzin (minimaal 8 tekens) om je privésleutel te beveiligen.';
+            modalSubmitText.textContent = 'Genereren';
+            confirmPassphraseGroup.classList.remove('hidden');
+        } else {
+            modalTitle.textContent = 'Sleutel ontgrendelen';
+            modalDescription.textContent = 'Voer je wachtwoordzin in om de privésleutel te ontgrendelen.';
+            modalSubmitText.textContent = 'Ontgrendelen';
+            confirmPassphraseGroup.classList.add('hidden');
+        }
+        
+        unlockModal.classList.remove('hidden');
+        unlockModal.classList.add('flex');
+        passphraseInput.focus();
+    }
+    
+    function closeModal() {
+        unlockModal.classList.add('hidden');
+        unlockModal.classList.remove('flex');
+    }
+    
+    document.getElementById('closeModal').addEventListener('click', closeModal);
+    document.getElementById('cancelModal').addEventListener('click', closeModal);
+    
+    // Toggle passphrase visibility
+    let showPassphrase = false;
+    document.getElementById('togglePassphrase').addEventListener('click', () => {
+        showPassphrase = !showPassphrase;
+        passphraseInput.type = showPassphrase ? 'text' : 'password';
+        confirmPassphraseInput.type = showPassphrase ? 'text' : 'password';
+        document.getElementById('passphraseEyeIcon').setAttribute('data-lucide', showPassphrase ? 'eye-off' : 'eye');
+        lucide.createIcons();
+    });
+    
+    passphraseForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const passphrase = passphraseInput.value;
+        
+        if (modalMode === 'generate') {
+            const confirm = confirmPassphraseInput.value;
+            if (passphrase !== confirm) {
+                modalError.textContent = 'Wachtwoordzinnen komen niet overeen.';
+                modalError.classList.remove('hidden');
+                return;
+            }
+        }
+        
+        modalSpinner.classList.remove('hidden');
+        document.getElementById('submitModal').disabled = true;
+        modalError.classList.add('hidden');
+        
+        try {
+            const endpoint = modalMode === 'generate' ? '/api/keys/generate' : '/api/keys/unlock';
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passphrase }),
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                closeModal();
+                window.location.reload();
+            } else {
+                modalError.textContent = data.detail || 'Actie mislukt.';
+                modalError.classList.remove('hidden');
+            }
+        } catch (err) {
+            modalError.textContent = 'Netwerkfout.';
+            modalError.classList.remove('hidden');
+        } finally {
+            modalSpinner.classList.add('hidden');
+            document.getElementById('submitModal').disabled = false;
+        }
+    });
+    
+    // Logout
+    document.getElementById('logoutBtn').addEventListener('click', async () => {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        window.location.href = '/ui';
+    });
+    
+    // Poll for log updates
+    setInterval(async () => {
+        if (!isProcessing) return;
+        try {
+            const response = await fetch('/api/logs?limit=5');
+            const data = await response.json();
+            // Could update logs here if needed
+        } catch (err) {}
+    }, 2000);
+    
+    // Load and display version
+    function loadVersion() {
+        fetch('/api/version')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                var appVersion = document.getElementById('appVersion');
+                if (appVersion) appVersion.textContent = 'v' + data.version;
+            })
+            .catch(function(err) { console.log('Version load error:', err); });
+    }
+    loadVersion();
+    
+    // ========================================
+    // Update Check Functionality
+    // ========================================
+    
+    var updateModal = $('updateModal');
+    var closeUpdateModalBtn = $('closeUpdateModal');
+    var dismissUpdateBtn = $('dismissUpdateBtn');
+    var triggerUpdateBtn = $('triggerUpdateBtn');
+    var currentVersionText = $('currentVersionText');
+    var latestVersionText = $('latestVersionText');
+    var releaseNotesContainer = $('releaseNotesContainer');
+    var releaseNotesText = $('releaseNotesText');
+    var updateInstructions = $('updateInstructions');
+    var updateInstructionsText = $('updateInstructionsText');
+    var updateCommandText = $('updateCommandText');
+    
+    function showUpdateModal(data) {
+        if (currentVersionText) currentVersionText.textContent = 'v' + data.current_version;
+        if (latestVersionText) latestVersionText.textContent = 'v' + data.latest_version;
+        
+        if (data.release_notes && releaseNotesContainer && releaseNotesText) {
+            releaseNotesText.textContent = data.release_notes;
+            releaseNotesContainer.classList.remove('hidden');
+        } else if (releaseNotesContainer) {
+            releaseNotesContainer.classList.add('hidden');
+        }
+        
+        if (updateInstructions) updateInstructions.classList.add('hidden');
+        
+        if (updateModal) {
+            updateModal.classList.remove('hidden');
+            updateModal.classList.add('flex');
+            lucide.createIcons();
+        }
+    }
+    
+    function hideUpdateModal() {
+        if (updateModal) {
+            updateModal.classList.add('hidden');
+            updateModal.classList.remove('flex');
+        }
+    }
+    
+    if (closeUpdateModalBtn) {
+        closeUpdateModalBtn.addEventListener('click', hideUpdateModal);
+    }
+    
+    if (dismissUpdateBtn) {
+        dismissUpdateBtn.addEventListener('click', function() {
+            fetch('/api/update/dismiss', { method: 'POST' })
+                .then(function() { hideUpdateModal(); })
+                .catch(function() { hideUpdateModal(); });
+        });
+    }
+    
+    if (triggerUpdateBtn) {
+        triggerUpdateBtn.addEventListener('click', function() {
+            triggerUpdateBtn.disabled = true;
+            triggerUpdateBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig...';
+            lucide.createIcons();
+            
+            fetch('/api/update/trigger', { method: 'POST' })
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (data.ok) {
+                        if (updateInstructions && updateInstructionsText && updateCommandText) {
+                            updateInstructionsText.textContent = data.message;
+                            updateCommandText.textContent = data.command;
+                            updateInstructions.classList.remove('hidden');
+                            lucide.createIcons();
+                        }
+                        
+                        if (data.action === 'restart_required') {
+                            // Show message that app will restart
+                            addLog('info', 'Update gestart', 'De applicatie wordt opnieuw opgestart...');
+                            setTimeout(function() {
+                                window.location.reload();
+                            }, 3000);
+                        }
+                    } else {
+                        addLog('error', 'Update mislukt', data.error || 'Onbekende fout');
+                    }
+                })
+                .catch(function(err) {
+                    addLog('error', 'Update mislukt', err.message);
+                })
+                .finally(function() {
+                    triggerUpdateBtn.disabled = false;
+                    triggerUpdateBtn.innerHTML = '<i data-lucide="download" class="w-4 h-4"></i> Updaten';
+                    lucide.createIcons();
+                });
+        });
+    }
+    
+    // Check for updates on page load (after a short delay)
+    function checkForUpdates() {
+        fetch('/api/update/status')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                if (data.update_available && !data.dismissed) {
+                    showUpdateModal(data);
+                }
+            })
+            .catch(function(err) {
+                console.log('Update check error:', err);
+            });
+    }
+    
+    // Check for updates 3 seconds after page load
+    setTimeout(checkForUpdates, 3000);
+    
+    console.log('Dashboard initialized successfully');
+}); // End DOMContentLoaded
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+services:
+  cerebro-companion:
+    build:
+      context: .
+      args:
+        - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+        - CACHE_BUST=${CACHE_BUST:-1}
+    container_name: cerebro-companion
+    ports:
+      - "18421:18421"
+    volumes:
+      # Bind mount local data folder for version file and persistent storage
+      - ./data:/app/data
+    environment:
+      - CEREBRO_CLOUD_URL=${CEREBRO_CLOUD_URL:-https://pilot-cerebro.onrender.com}
+      - CEREBRO_SALT=${CEREBRO_SALT:-}
+    restart: unless-stopped
