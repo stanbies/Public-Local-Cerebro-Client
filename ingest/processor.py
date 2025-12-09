@@ -24,6 +24,32 @@ from cerebro_care import (
 )
 
 
+def check_ocr_availability() -> dict[str, Any]:
+    """Check if OCR is available and return the status."""
+    try:
+        from cerebro_care import get_ocr_status
+        status = get_ocr_status()
+    except ImportError:
+        # Fallback if get_ocr_status not available
+        status = {"ocr_available": False, "tesseract_path": None, "error": "get_ocr_status not available"}
+        try:
+            import pytesseract
+            pytesseract.get_tesseract_version()
+            status = {"ocr_available": True, "tesseract_path": pytesseract.pytesseract.tesseract_cmd, "error": None}
+        except Exception as e:
+            status["error"] = str(e)
+    
+    print(f"[OCR Check] Available: {status.get('ocr_available', False)}")
+    print(f"[OCR Check] Tesseract path: {status.get('tesseract_path', 'N/A')}")
+    if status.get('error'):
+        print(f"[OCR Check] Error: {status['error']}")
+    return status
+
+
+# Check OCR status at module load
+_ocr_status = check_ocr_availability()
+
+
 @dataclass
 class ProcessingResult:
     """Result of processing XML files."""
@@ -34,6 +60,11 @@ class ProcessingResult:
     care_tasks: list[dict[str, Any]] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)
     processing_time_ms: int = 0
+    # OCR tracking
+    ocr_available: bool = False
+    ocr_used: bool = False
+    pdfs_found: int = 0
+    pdfs_processed: int = 0
 
 
 @dataclass
@@ -184,6 +215,15 @@ class XMLProcessor:
                 result.patient_count = summary.get("patients_processed", len(result.profiles))
                 result.errors.extend(summary.get("errors", []))
                 result.success = result.patient_count > 0
+                
+                # Extract OCR metadata from profiles
+                result.ocr_available = _ocr_status.get("ocr_available", False)
+                for profile_data in result.profiles:
+                    pm = profile_data.get("processing_metadata")
+                    if pm:
+                        result.ocr_used = result.ocr_used or pm.get("ocr_used", False)
+                        result.pdfs_found += pm.get("pdfs_found", 0)
+                        result.pdfs_processed += pm.get("pdfs_with_text", 0) + pm.get("ocr_pages_processed", 0)
                 
                 self._report_progress("complete", "Processing complete", 1.0)
                 

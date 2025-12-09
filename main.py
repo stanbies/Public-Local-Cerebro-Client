@@ -523,6 +523,28 @@ async def resolve_mapping(pseudo_id: str):
     return {"found": False, "mapping": None}
 
 
+@app.get("/api/mappings/email/{pseudo_id}")
+async def get_patient_email(pseudo_id: str):
+    """
+    Get the email address(es) for a patient by pseudo ID.
+    This data never leaves the local machine.
+    """
+    if not app_state.key_manager.is_unlocked:
+        raise HTTPException(status_code=400, detail="Keys must be unlocked")
+    
+    mapping = app_state.current_mappings.get(pseudo_id)
+    if mapping:
+        emails = mapping.get("emails", [])
+        return {
+            "found": True,
+            "pseudo_id": pseudo_id,
+            "emails": emails,
+            "primary_email": emails[0] if emails else None,
+        }
+    
+    return {"found": False, "pseudo_id": pseudo_id, "emails": [], "primary_email": None}
+
+
 @app.post("/api/mappings/reload")
 async def reload_mappings():
     """
