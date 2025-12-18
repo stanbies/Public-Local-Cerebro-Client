@@ -26,7 +26,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import config
+from config import config, VERSION
 from auth import AuthManager
 from crypto import KeyManager
 from crypto.vault import LocalVaultCache
@@ -35,7 +35,7 @@ from ingest import XMLProcessor, CloudUploader
 from ingest.processor import create_mapping_for_vault
 from updater import UpdateChecker
 
-__version__ = "1.0.0"
+__version__ = VERSION  # Use VERSION from config.py as single source of truth
 
 
 # Global state
