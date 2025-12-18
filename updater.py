@@ -16,9 +16,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# GitHub repository info
+# GitHub repository info - UPDATE THIS to match your actual repo name
 GITHUB_OWNER = "stanbies"
-GITHUB_REPO = "Cerebro-Local-Client"
+GITHUB_REPO = "Public-Local-Cerebro-Client"  # Must match your GitHub repo name exactly
 GITHUB_API_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}"
 
 # Version file path (updated by start.bat before Docker starts)
@@ -111,25 +111,35 @@ class UpdateChecker:
     async def _check_github_api(self) -> Optional[UpdateInfo]:
         """Check GitHub API for latest release/tag (works for public repos)."""
         try:
+            url = f"{GITHUB_API_URL}/releases/latest"
+            print(f"[UPDATE] Checking GitHub API: {url}")
+            
             async with httpx.AsyncClient(timeout=10.0) as client:
                 # Try to get latest release first
                 response = await client.get(
-                    f"{GITHUB_API_URL}/releases/latest",
+                    url,
                     headers={"Accept": "application/vnd.github.v3+json"}
                 )
+                
+                print(f"[UPDATE] GitHub API response: {response.status_code}")
                 
                 if response.status_code == 200:
                     data = response.json()
                     latest_version = data.get("tag_name", "").lstrip('v')
+                    is_newer = self._is_newer_version(latest_version, self.current_version)
+                    
+                    print(f"[UPDATE] Current: {self.current_version}, Latest: {latest_version}, Update available: {is_newer}")
                     
                     return UpdateInfo(
                         current_version=self.current_version,
                         latest_version=latest_version,
-                        update_available=self._is_newer_version(latest_version, self.current_version),
+                        update_available=is_newer,
                         release_notes=data.get("body", ""),
                         release_url=data.get("html_url", ""),
                         published_at=data.get("published_at", "")
                     )
+                else:
+                    print(f"[UPDATE] GitHub API returned status {response.status_code}: {response.text[:200]}")
                 
                 # Fallback: check tags if no releases
                 response = await client.get(
@@ -149,10 +159,13 @@ class UpdateChecker:
                         )
                 
         except httpx.TimeoutException:
+            print("[UPDATE] Timeout checking GitHub API")
             logger.warning("Timeout checking GitHub API for updates")
         except httpx.RequestError as e:
+            print(f"[UPDATE] Request error: {e}")
             logger.warning(f"Error checking GitHub API: {e}")
         except Exception as e:
+            print(f"[UPDATE] Unexpected error: {e}")
             logger.warning(f"Unexpected error checking GitHub API: {e}")
         return None
     
