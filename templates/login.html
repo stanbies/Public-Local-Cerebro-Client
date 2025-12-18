@@ -3,7 +3,16 @@
 {% block title %}Inloggen - Cerebro Companion{% endblock %}
 
 {% block content %}
-<div class="min-h-screen flex items-center justify-center transition-all duration-500">
+<div class="min-h-screen flex items-center justify-center transition-all duration-500 relative">
+    <!-- Exit button in top right corner -->
+    <button
+        onclick="exitApplication()"
+        class="absolute top-4 right-4 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+        title="Applicatie afsluiten"
+    >
+        <i data-lucide="power" class="w-5 h-5"></i>
+    </button>
+    
     <div class="bg-white p-10 rounded-xl shadow-xl w-full max-w-sm animate-fade-in-up">
         <!-- Cerebro Logo -->
         <div class="flex justify-center items-center mb-8 transform transition-all duration-300 hover:scale-105">

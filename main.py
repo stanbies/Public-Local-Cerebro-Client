@@ -15,13 +15,18 @@ from typing import Optional
 from contextlib import asynccontextmanager
 from datetime import datetime
 
+# Configure OCR paths before importing anything that uses them
+# NOTE: This only sets environment variables, doesn't import pytesseract yet
+from ocr_setup import setup_ocr_paths, get_ocr_config
+_ocr_config = setup_ocr_paths()
+
 from fastapi import FastAPI, Request, UploadFile, File, Form, HTTPException, Depends
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import config
+from config import config, VERSION
 from auth import AuthManager
 from crypto import KeyManager
 from crypto.vault import LocalVaultCache
@@ -30,7 +35,7 @@ from ingest import XMLProcessor, CloudUploader
 from ingest.processor import create_mapping_for_vault
 from updater import UpdateChecker
 
-__version__ = "1.0.0"
+__version__ = VERSION  # Use VERSION from config.py as single source of truth
 
 
 # Global state
@@ -760,23 +765,39 @@ async def heartbeat():
 async def shutdown_signal():
     """
     Receive shutdown signal when browser tab is closing.
-    Only shutdown if running as frozen exe.
+    This is now a no-op - we only shutdown via explicit /api/shutdown.
+    """
+    # Don't auto-shutdown on tab close - too aggressive
+    return {"ok": True}
+
+
+@app.post("/api/shutdown")
+async def shutdown_app():
+    """
+    Explicitly shutdown the application.
+    Called when user clicks the Exit button.
     """
     global _shutdown_requested
     
     is_frozen = getattr(sys, 'frozen', False)
-    if is_frozen and not _shutdown_requested:
+    if not _shutdown_requested:
         _shutdown_requested = True
-        app_state.add_log("info", "Browser closed", "Shutting down application...")
+        app_state.add_log("info", "Shutdown requested", "Application shutting down...")
+        print("[APP] Shutdown requested by user")
         
         # Schedule shutdown after a short delay
         async def delayed_shutdown():
             await asyncio.sleep(1)
-            os._exit(0)
+            if is_frozen:
+                os._exit(0)
+            else:
+                # In dev mode, just stop gracefully
+                import signal
+                os.kill(os.getpid(), signal.SIGTERM)
         
         asyncio.create_task(delayed_shutdown())
     
-    return {"ok": True}
+    return {"ok": True, "message": "Shutting down..."}
 
 
 @app.post("/api/visibility-hidden")
@@ -805,6 +826,16 @@ if __name__ == "__main__":
     # Check if running in Docker (don't open browser)
     in_docker = os.path.exists('/.dockerenv') or os.environ.get('DOCKER_CONTAINER', False)
     
+    # Check if running as frozen exe
+    is_frozen = getattr(sys, 'frozen', False)
+    
+    # Fix for PyInstaller windowed mode: sys.stdout/stderr are None
+    # This causes uvicorn's logging to fail on isatty() check
+    if is_frozen and sys.stdout is None:
+        import io
+        sys.stdout = io.StringIO()
+        sys.stderr = io.StringIO()
+    
     # In Docker, bind to 0.0.0.0 to accept external connections
     host = "0.0.0.0" if in_docker else config.HOST
     
@@ -814,10 +845,20 @@ if __name__ == "__main__":
         browser_thread.start()
     
     # Run the server
-    uvicorn.run(
-        "main:app",
-        host=host,
-        port=config.PORT,
-        reload=False,
-        log_level="info",
-    )
+    # In frozen mode, pass the app object directly (string import doesn't work)
+    # In development mode, use string for hot reload capability
+    if is_frozen:
+        uvicorn.run(
+            app,
+            host=host,
+            port=config.PORT,
+            log_level="info",
+        )
+    else:
+        uvicorn.run(
+            "main:app",
+            host=host,
+            port=config.PORT,
+            reload=False,
+            log_level="info",
+        )

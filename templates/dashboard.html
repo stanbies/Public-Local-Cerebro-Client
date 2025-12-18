@@ -26,6 +26,13 @@
             >
                 <i data-lucide="log-out" class="w-5 h-5"></i>
             </button>
+            <button
+                onclick="exitApplication()"
+                class="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                title="Applicatie afsluiten"
+            >
+                <i data-lucide="power" class="w-5 h-5"></i>
+            </button>
         </div>
     </div>
 </header>
@@ -299,24 +306,30 @@
             >
                 Later
             </button>
-            <button
-                id="triggerUpdateBtn"
+            <a
+                id="downloadUpdateBtn"
+                href="#"
+                target="_blank"
                 class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 
-                       transition flex items-center justify-center gap-2"
+                       transition flex items-center justify-center gap-2 no-underline"
             >
-                <i data-lucide="download" class="w-4 h-4"></i>
-                Updaten
-            </button>
+                <i data-lucide="external-link" class="w-4 h-4"></i>
+                Downloaden
+            </a>
         </div>
         
-        <!-- Update instructions (shown after triggering) -->
-        <div id="updateInstructions" class="hidden mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p class="text-sm text-amber-800 font-medium mb-2">
+        <!-- Download instructions -->
+        <div id="updateInstructions" class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p class="text-sm text-blue-800 font-medium mb-2">
                 <i data-lucide="info" class="w-4 h-4 inline mr-1"></i>
                 Update instructies
             </p>
-            <p id="updateInstructionsText" class="text-sm text-amber-700"></p>
-            <code id="updateCommandText" class="block mt-2 text-xs bg-amber-100 p-2 rounded font-mono"></code>
+            <ol class="text-sm text-blue-700 list-decimal list-inside space-y-1">
+                <li>Klik op "Downloaden" om de nieuwe versie te downloaden</li>
+                <li>Sluit deze applicatie af (⏻ knop rechtsboven)</li>
+                <li>Pak het gedownloade ZIP-bestand uit</li>
+                <li>Start de nieuwe CerebroCompanion.exe</li>
+            </ol>
         </div>
     </div>
 </div>
@@ -753,18 +766,20 @@ document.addEventListener('DOMContentLoaded', function() {
     var updateModal = $('updateModal');
     var closeUpdateModalBtn = $('closeUpdateModal');
     var dismissUpdateBtn = $('dismissUpdateBtn');
-    var triggerUpdateBtn = $('triggerUpdateBtn');
+    var downloadUpdateBtn = $('downloadUpdateBtn');
     var currentVersionText = $('currentVersionText');
     var latestVersionText = $('latestVersionText');
     var releaseNotesContainer = $('releaseNotesContainer');
     var releaseNotesText = $('releaseNotesText');
-    var updateInstructions = $('updateInstructions');
-    var updateInstructionsText = $('updateInstructionsText');
-    var updateCommandText = $('updateCommandText');
     
     function showUpdateModal(data) {
         if (currentVersionText) currentVersionText.textContent = 'v' + data.current_version;
         if (latestVersionText) latestVersionText.textContent = 'v' + data.latest_version;
+        
+        // Set download link to GitHub releases page
+        if (downloadUpdateBtn && data.release_url) {
+            downloadUpdateBtn.href = data.release_url;
+        }
         
         if (data.release_notes && releaseNotesContainer && releaseNotesText) {
             releaseNotesText.textContent = data.release_notes;
@@ -772,8 +787,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } else if (releaseNotesContainer) {
             releaseNotesContainer.classList.add('hidden');
         }
-        
-        if (updateInstructions) updateInstructions.classList.add('hidden');
         
         if (updateModal) {
             updateModal.classList.remove('hidden');
@@ -798,45 +811,6 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch('/api/update/dismiss', { method: 'POST' })
                 .then(function() { hideUpdateModal(); })
                 .catch(function() { hideUpdateModal(); });
-        });
-    }
-    
-    if (triggerUpdateBtn) {
-        triggerUpdateBtn.addEventListener('click', function() {
-            triggerUpdateBtn.disabled = true;
-            triggerUpdateBtn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig...';
-            lucide.createIcons();
-            
-            fetch('/api/update/trigger', { method: 'POST' })
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (data.ok) {
-                        if (updateInstructions && updateInstructionsText && updateCommandText) {
-                            updateInstructionsText.textContent = data.message;
-                            updateCommandText.textContent = data.command;
-                            updateInstructions.classList.remove('hidden');
-                            lucide.createIcons();
-                        }
-                        
-                        if (data.action === 'restart_required') {
-                            // Show message that app will restart
-                            addLog('info', 'Update gestart', 'De applicatie wordt opnieuw opgestart...');
-                            setTimeout(function() {
-                                window.location.reload();
-                            }, 3000);
-                        }
-                    } else {
-                        addLog('error', 'Update mislukt', data.error || 'Onbekende fout');
-                    }
-                })
-                .catch(function(err) {
-                    addLog('error', 'Update mislukt', err.message);
-                })
-                .finally(function() {
-                    triggerUpdateBtn.disabled = false;
-                    triggerUpdateBtn.innerHTML = '<i data-lucide="download" class="w-4 h-4"></i> Updaten';
-                    lucide.createIcons();
-                });
         });
     }
     

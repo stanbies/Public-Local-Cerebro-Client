@@ -17,11 +17,13 @@ data/
 *.swp
 *.swo
 
-# Distribution / packaging
+# Distribution / packaging - DO NOT COMMIT these large folders
 dist/
 build/
 *.egg-info/
-*.spec
+
+# Third-party binaries (Tesseract, Poppler) - download during build
+third_party/
 
 # Logs
 *.log
