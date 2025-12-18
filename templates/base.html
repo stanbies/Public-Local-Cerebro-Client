@@ -56,12 +56,16 @@
         initIcons();
         document.addEventListener('DOMContentLoaded', initIcons);
         
-        // Notify server when page is closing (for exe shutdown)
-        window.addEventListener('beforeunload', function() {
-            try {
-                navigator.sendBeacon('/api/shutdown-signal');
-            } catch(e) {}
-        });
+        // Function to explicitly exit the application
+        function exitApplication() {
+            if (confirm('Are you sure you want to exit Cerebro Companion?')) {
+                fetch('/api/shutdown', { method: 'POST' })
+                    .then(() => {
+                        document.body.innerHTML = '<div class="flex items-center justify-center min-h-screen"><div class="text-center"><h1 class="text-2xl font-bold text-gray-700">Application Closed</h1><p class="text-gray-500 mt-2">You can close this browser tab now.</p></div></div>';
+                    })
+                    .catch(() => {});
+            }
+        }
     </script>
     
     {% block extra_scripts %}{% endblock %}
