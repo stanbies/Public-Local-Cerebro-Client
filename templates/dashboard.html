@@ -104,6 +104,109 @@
         </div>
     </div>
     
+    <!-- Hoeilaart Mapping Setup Card -->
+    <div id="hoeilaartCard" class="bg-white rounded-xl shadow-md p-6 mb-6 animate-fade-in-up hidden">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <div id="hoeilaartStatusIcon" class="w-12 h-12 rounded-full flex items-center justify-center bg-purple-100">
+                    <i data-lucide="building-2" class="w-6 h-6 text-purple-600" id="hoeilaartIcon"></i>
+                </div>
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-900">Hoeilaart Praktijk Mapping</h2>
+                    <p id="hoeilaartStatusText" class="text-sm text-gray-600">
+                        Laadt status...
+                    </p>
+                </div>
+            </div>
+            
+            <div id="hoeilaartActions" class="flex gap-2">
+                <!-- Actions will be populated by JavaScript -->
+            </div>
+        </div>
+        
+        <!-- Setup Form (hidden by default) -->
+        <div id="hoeilaartSetupForm" class="mt-4 hidden">
+            <div class="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                <h3 class="font-medium text-purple-900 mb-3">Mapping bestand instellen</h3>
+                <form id="hoeilaartSetupFormElement" enctype="multipart/form-data">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Mapping bestand (mapping_encrypted.bin)
+                            </label>
+                            <input
+                                type="file"
+                                id="hoeilaartFileInput"
+                                accept=".bin"
+                                required
+                                class="w-full px-3 py-2 border rounded-md text-sm"
+                            />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Praktijk wachtwoord
+                            </label>
+                            <input
+                                type="password"
+                                id="hoeilaartPracticePassword"
+                                placeholder="Wachtwoord van de praktijk"
+                                required
+                                class="w-full px-3 py-2 border rounded-md text-sm"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">Dit is het wachtwoord waarmee het bestand is versleuteld.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Uw persoonlijke wachtwoordzin
+                            </label>
+                            <input
+                                type="password"
+                                id="hoeilaartUserPassphrase"
+                                placeholder="Minimaal 8 tekens"
+                                required
+                                minlength="8"
+                                class="w-full px-3 py-2 border rounded-md text-sm"
+                            />
+                            <p class="text-xs text-gray-500 mt-1">Kies een persoonlijke wachtwoordzin om de mapping lokaal te beveiligen.</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
+                                Bevestig wachtwoordzin
+                            </label>
+                            <input
+                                type="password"
+                                id="hoeilaartUserPassphraseConfirm"
+                                placeholder="Herhaal wachtwoordzin"
+                                required
+                                minlength="8"
+                                class="w-full px-3 py-2 border rounded-md text-sm"
+                            />
+                        </div>
+                    </div>
+                    <div id="hoeilaartSetupError" class="text-sm text-red-500 mt-2 hidden"></div>
+                    <div class="flex gap-2 mt-4">
+                        <button
+                            type="button"
+                            id="hoeilaartCancelSetup"
+                            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
+                        >
+                            Annuleren
+                        </button>
+                        <button
+                            type="submit"
+                            id="hoeilaartSubmitSetup"
+                            class="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 
+                                   transition flex items-center justify-center gap-2"
+                        >
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            Instellen
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <!-- Drop Zone -->
         <div class="bg-white rounded-xl shadow-md p-6 animate-fade-in-up" style="animation-delay: 0.1s">
@@ -888,6 +991,237 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
         });
     }
+    
+    // ========================================
+    // Hoeilaart Mapping Setup
+    // ========================================
+    
+    var hoeilaartCard = $('hoeilaartCard');
+    var hoeilaartStatusText = $('hoeilaartStatusText');
+    var hoeilaartStatusIcon = $('hoeilaartStatusIcon');
+    var hoeilaartActions = $('hoeilaartActions');
+    var hoeilaartSetupForm = $('hoeilaartSetupForm');
+    var hoeilaartSetupFormElement = $('hoeilaartSetupFormElement');
+    var hoeilaartSetupError = $('hoeilaartSetupError');
+    var hoeilaartFileInput = $('hoeilaartFileInput');
+    var hoeilaartPracticePassword = $('hoeilaartPracticePassword');
+    var hoeilaartUserPassphrase = $('hoeilaartUserPassphrase');
+    var hoeilaartUserPassphraseConfirm = $('hoeilaartUserPassphraseConfirm');
+    var hoeilaartCancelSetup = $('hoeilaartCancelSetup');
+    var hoeilaartSubmitSetup = $('hoeilaartSubmitSetup');
+    
+    var hoeilaartStatus = {
+        available: false,
+        setup_complete: false,
+        is_unlocked: false,
+        mapping_count: 0
+    };
+    
+    function loadHoeilaartStatus() {
+        fetch('/api/hoeilaart/status')
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                hoeilaartStatus = data;
+                updateHoeilaartUI();
+            })
+            .catch(function(err) {
+                console.log('Hoeilaart status error:', err);
+            });
+    }
+    
+    function updateHoeilaartUI() {
+        if (!hoeilaartCard) return;
+        
+        // Always show the card (it's for Hoeilaart practice members)
+        hoeilaartCard.classList.remove('hidden');
+        
+        if (!hoeilaartStatus.setup_complete) {
+            // Not set up yet
+            hoeilaartStatusIcon.className = 'w-12 h-12 rounded-full flex items-center justify-center bg-amber-100';
+            hoeilaartStatusText.textContent = 'Mapping bestand nog niet ingesteld';
+            hoeilaartStatusText.className = 'text-sm text-amber-600';
+            hoeilaartActions.innerHTML = '<button id="hoeilaartStartSetup" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2"><i data-lucide="upload" class="w-4 h-4"></i>Mapping instellen</button>';
+            lucide.createIcons();
+            
+            var startSetupBtn = $('hoeilaartStartSetup');
+            if (startSetupBtn) {
+                startSetupBtn.addEventListener('click', function() {
+                    hoeilaartSetupForm.classList.remove('hidden');
+                });
+            }
+        } else if (!hoeilaartStatus.is_unlocked) {
+            // Set up but locked
+            hoeilaartStatusIcon.className = 'w-12 h-12 rounded-full flex items-center justify-center bg-amber-100';
+            hoeilaartStatusText.textContent = 'Mapping vergrendeld - Ontgrendel om patiëntgegevens te zien';
+            hoeilaartStatusText.className = 'text-sm text-amber-600';
+            hoeilaartActions.innerHTML = '<button id="hoeilaartUnlockBtn" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition flex items-center gap-2"><i data-lucide="unlock" class="w-4 h-4"></i>Ontgrendelen</button>';
+            lucide.createIcons();
+            
+            var unlockBtn = $('hoeilaartUnlockBtn');
+            if (unlockBtn) {
+                unlockBtn.addEventListener('click', showHoeilaartUnlockModal);
+            }
+        } else {
+            // Unlocked and ready
+            hoeilaartStatusIcon.className = 'w-12 h-12 rounded-full flex items-center justify-center bg-green-100';
+            hoeilaartStatusText.textContent = 'Ontgrendeld - ' + hoeilaartStatus.mapping_count + ' patiënt(en) beschikbaar';
+            hoeilaartStatusText.className = 'text-sm text-green-600';
+            hoeilaartActions.innerHTML = '<button id="hoeilaartLockBtn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition flex items-center gap-2"><i data-lucide="lock" class="w-4 h-4"></i>Vergrendelen</button>';
+            lucide.createIcons();
+            
+            var lockBtn = $('hoeilaartLockBtn');
+            if (lockBtn) {
+                lockBtn.addEventListener('click', function() {
+                    fetch('/api/hoeilaart/lock', { method: 'POST' })
+                        .then(function() {
+                            loadHoeilaartStatus();
+                            addLog('info', 'Hoeilaart mapping vergrendeld', '');
+                        });
+                });
+            }
+        }
+        
+        hoeilaartSetupForm.classList.add('hidden');
+    }
+    
+    // Hoeilaart Unlock Modal
+    function showHoeilaartUnlockModal() {
+        modalMode = 'hoeilaart_unlock';
+        passphraseInput.value = '';
+        modalError.classList.add('hidden');
+        modalTitle.textContent = 'Hoeilaart Mapping Ontgrendelen';
+        modalDescription.textContent = 'Voer uw persoonlijke wachtwoordzin in om de Hoeilaart patiëntmapping te ontgrendelen.';
+        modalSubmitText.textContent = 'Ontgrendelen';
+        confirmPassphraseGroup.classList.add('hidden');
+        
+        unlockModal.classList.remove('hidden');
+        unlockModal.classList.add('flex');
+        passphraseInput.focus();
+    }
+    
+    // Cancel setup
+    if (hoeilaartCancelSetup) {
+        hoeilaartCancelSetup.addEventListener('click', function() {
+            hoeilaartSetupForm.classList.add('hidden');
+            hoeilaartSetupError.classList.add('hidden');
+        });
+    }
+    
+    // Setup form submission
+    if (hoeilaartSetupFormElement) {
+        hoeilaartSetupFormElement.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            var file = hoeilaartFileInput.files[0];
+            var practicePassword = hoeilaartPracticePassword.value;
+            var userPassphrase = hoeilaartUserPassphrase.value;
+            var userPassphraseConfirm = hoeilaartUserPassphraseConfirm.value;
+            
+            // Validate
+            if (!file) {
+                hoeilaartSetupError.textContent = 'Selecteer een mapping bestand.';
+                hoeilaartSetupError.classList.remove('hidden');
+                return;
+            }
+            
+            if (!practicePassword) {
+                hoeilaartSetupError.textContent = 'Voer het praktijk wachtwoord in.';
+                hoeilaartSetupError.classList.remove('hidden');
+                return;
+            }
+            
+            if (userPassphrase.length < 8) {
+                hoeilaartSetupError.textContent = 'Wachtwoordzin moet minimaal 8 tekens bevatten.';
+                hoeilaartSetupError.classList.remove('hidden');
+                return;
+            }
+            
+            if (userPassphrase !== userPassphraseConfirm) {
+                hoeilaartSetupError.textContent = 'Wachtwoordzinnen komen niet overeen.';
+                hoeilaartSetupError.classList.remove('hidden');
+                return;
+            }
+            
+            hoeilaartSetupError.classList.add('hidden');
+            hoeilaartSubmitSetup.disabled = true;
+            hoeilaartSubmitSetup.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Bezig...';
+            lucide.createIcons();
+            
+            try {
+                var formData = new FormData();
+                formData.append('file', file);
+                formData.append('practice_password', practicePassword);
+                formData.append('user_passphrase', userPassphrase);
+                
+                var response = await fetch('/api/hoeilaart/setup', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                var data = await response.json();
+                
+                if (response.ok && data.success) {
+                    addLog('success', 'Hoeilaart mapping ingesteld', data.message);
+                    loadHoeilaartStatus();
+                    hoeilaartSetupForm.classList.add('hidden');
+                    // Clear form
+                    hoeilaartSetupFormElement.reset();
+                } else {
+                    hoeilaartSetupError.textContent = data.detail || 'Setup mislukt.';
+                    hoeilaartSetupError.classList.remove('hidden');
+                }
+            } catch (err) {
+                hoeilaartSetupError.textContent = 'Netwerkfout: ' + err.message;
+                hoeilaartSetupError.classList.remove('hidden');
+            } finally {
+                hoeilaartSubmitSetup.disabled = false;
+                hoeilaartSubmitSetup.innerHTML = '<i data-lucide="upload" class="w-4 h-4"></i> Instellen';
+                lucide.createIcons();
+            }
+        });
+    }
+    
+    // Load Hoeilaart status on page load
+    loadHoeilaartStatus();
+    
+    // Extend the passphrase form to handle Hoeilaart unlock
+    var originalPassphraseSubmit = passphraseForm.onsubmit;
+    passphraseForm.addEventListener('submit', async (e) => {
+        if (modalMode !== 'hoeilaart_unlock') return; // Let original handler run
+        
+        e.preventDefault();
+        
+        const passphrase = passphraseInput.value;
+        
+        modalSpinner.classList.remove('hidden');
+        document.getElementById('submitModal').disabled = true;
+        modalError.classList.add('hidden');
+        
+        try {
+            const response = await fetch('/api/hoeilaart/unlock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ passphrase }),
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                closeModal();
+                loadHoeilaartStatus();
+                addLog('success', 'Hoeilaart mapping ontgrendeld', data.mapping_count + ' patiënt(en) geladen');
+            } else {
+                modalError.textContent = data.detail || 'Ontgrendelen mislukt.';
+                modalError.classList.remove('hidden');
+            }
+        } catch (err) {
+            modalError.textContent = 'Netwerkfout.';
+            modalError.classList.remove('hidden');
+        } finally {
+            modalSpinner.classList.add('hidden');
+            document.getElementById('submitModal').disabled = false;
+        }
+    });
     
     console.log('Dashboard initialized successfully');
 }); // End DOMContentLoaded

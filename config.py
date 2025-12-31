@@ -69,6 +69,16 @@ class Config:
     def practice_config_path(self) -> Path:
         """Path to practice configuration."""
         return self.STORAGE_DIR / "practice_config.json"
+    
+    @property
+    def hoeilaart_mapping_path(self) -> Path:
+        """Path to encrypted Hoeilaart mapping cache (separate from regular mappings)."""
+        return self.cache_dir / "hoeilaart_mapping.enc"
+    
+    @property
+    def hoeilaart_setup_flag_path(self) -> Path:
+        """Path to flag file indicating Hoeilaart mapping has been set up."""
+        return self.cache_dir / "hoeilaart_setup.flag"
 
 
 # Global config instance

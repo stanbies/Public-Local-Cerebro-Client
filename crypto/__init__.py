@@ -11,5 +11,6 @@ Handles:
 from .key_manager import KeyManager
 from .vault import VaultEncryptor
 from .passphrase import PassphraseDeriver
+from .hoeilaart_vault import HoeilaartVault
 
-__all__ = ["KeyManager", "VaultEncryptor", "PassphraseDeriver"]
+__all__ = ["KeyManager", "VaultEncryptor", "PassphraseDeriver", "HoeilaartVault"]

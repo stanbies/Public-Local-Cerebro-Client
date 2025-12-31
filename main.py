@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import config, VERSION
 from auth import AuthManager
-from crypto import KeyManager
+from crypto import KeyManager, HoeilaartVault
 from crypto.vault import LocalVaultCache
 from crypto.passphrase import PassphraseDeriver
 from ingest import XMLProcessor, CloudUploader
@@ -44,11 +44,13 @@ class AppState:
     key_manager: Optional[KeyManager] = None
     auth_manager: Optional[AuthManager] = None
     vault_cache: Optional[LocalVaultCache] = None
+    hoeilaart_vault: Optional[HoeilaartVault] = None  # Separate vault for Hoeilaart practice
     update_checker: Optional[UpdateChecker] = None
     processing_logs: list[dict] = []
     current_mappings: dict = {}  # In-memory only, loaded from encrypted local storage
     _passphrase_key: Optional[bytes] = None  # Derived key for local encryption
     _update_dismissed: bool = False  # User dismissed the update popup
+    _hoeilaart_passphrase: Optional[str] = None  # Cached passphrase for Hoeilaart vault
     
     def set_passphrase_key(self, key: bytes):
         """Set the passphrase-derived key for local vault encryption."""
@@ -86,8 +88,11 @@ class AppState:
         """Clear all sensitive data from memory."""
         self.current_mappings = {}
         self._passphrase_key = None
+        self._hoeilaart_passphrase = None
         if self.key_manager:
             self.key_manager.lock()
+        if self.hoeilaart_vault:
+            self.hoeilaart_vault.lock()
 
 
 app_state = AppState()
@@ -100,6 +105,7 @@ async def lifespan(app: FastAPI):
     app_state.key_manager = KeyManager(config.keys_dir)
     app_state.auth_manager = AuthManager(config.CLOUD_API_URL, config.jwt_path)
     app_state.vault_cache = LocalVaultCache(config.mapping_cache_path)
+    app_state.hoeilaart_vault = HoeilaartVault(config.hoeilaart_mapping_path, config.hoeilaart_setup_flag_path)
     app_state.update_checker = UpdateChecker(__version__)
     
     app_state.add_log("info", "Cerebro Companion started", f"Server running on http://{config.HOST}:{config.PORT}")
@@ -609,6 +615,203 @@ async def delete_all_mappings():
         "message": f"{count} mapping(s) verwijderd",
         "deleted_count": count,
     }
+
+
+# ============================================================================
+# Hoeilaart Practice Mapping API
+# ============================================================================
+
+@app.get("/api/hoeilaart/status")
+async def get_hoeilaart_status():
+    """Get the status of the Hoeilaart mapping vault."""
+    if not app_state.hoeilaart_vault:
+        return {
+            "available": False,
+            "setup_complete": False,
+            "is_unlocked": False,
+            "mapping_count": 0,
+        }
+    
+    return {
+        "available": True,
+        "setup_complete": app_state.hoeilaart_vault.is_setup_complete,
+        "is_unlocked": app_state.hoeilaart_vault.is_unlocked,
+        "mapping_count": app_state.hoeilaart_vault.mapping_count,
+    }
+
+
+@app.post("/api/hoeilaart/setup")
+async def setup_hoeilaart_mapping(
+    file: UploadFile = File(...),
+    practice_password: str = Form(...),
+    user_passphrase: str = Form(...),
+):
+    """
+    Set up the Hoeilaart mapping vault.
+    
+    1. Upload the mapping_encrypted.bin file
+    2. Decrypt with the practice password
+    3. Re-encrypt with the user's personal passphrase
+    """
+    if not app_state.hoeilaart_vault:
+        raise HTTPException(status_code=500, detail="Hoeilaart vault not initialized")
+    
+    if not user_passphrase or len(user_passphrase) < 8:
+        raise HTTPException(status_code=400, detail="Passphrase must be at least 8 characters")
+    
+    try:
+        # Read the uploaded file
+        content = await file.read()
+        
+        if len(content) < 28:  # Minimum: salt(16) + nonce(12) + some ciphertext
+            raise HTTPException(status_code=400, detail="Invalid file format")
+        
+        # Decrypt with practice password
+        try:
+            records = app_state.hoeilaart_vault.decrypt_original_file(content, practice_password)
+        except ValueError as e:
+            app_state.add_log("warning", "Hoeilaart setup failed", str(e))
+            raise HTTPException(status_code=400, detail="Decryption failed. Check if the password is correct.")
+        
+        if not records:
+            raise HTTPException(status_code=400, detail="No patient records found in file")
+        
+        # Set up the vault with user's passphrase
+        app_state.hoeilaart_vault.setup(records, user_passphrase)
+        app_state._hoeilaart_passphrase = user_passphrase
+        
+        app_state.add_log(
+            "info", 
+            "Hoeilaart mapping configured", 
+            f"{len(records)} patient mapping(s) imported and encrypted"
+        )
+        
+        return {
+            "success": True,
+            "message": f"Successfully imported {len(records)} patient mappings",
+            "patient_count": len(records),
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        app_state.add_log("error", "Hoeilaart setup error", str(e))
+        raise HTTPException(status_code=500, detail=f"Setup failed: {str(e)}")
+
+
+@app.post("/api/hoeilaart/unlock")
+async def unlock_hoeilaart_vault(request: Request):
+    """Unlock the Hoeilaart vault with the user's passphrase."""
+    if not app_state.hoeilaart_vault:
+        raise HTTPException(status_code=500, detail="Hoeilaart vault not initialized")
+    
+    if not app_state.hoeilaart_vault.is_setup_complete:
+        raise HTTPException(status_code=400, detail="Hoeilaart mapping not set up. Upload the mapping file first.")
+    
+    data = await request.json()
+    passphrase = data.get("passphrase", "")
+    
+    if not passphrase:
+        raise HTTPException(status_code=400, detail="Passphrase required")
+    
+    success = app_state.hoeilaart_vault.unlock(passphrase)
+    
+    if success:
+        app_state._hoeilaart_passphrase = passphrase
+        app_state.add_log(
+            "info", 
+            "Hoeilaart vault unlocked", 
+            f"{app_state.hoeilaart_vault.mapping_count} patient mapping(s) loaded"
+        )
+        return {
+            "success": True,
+            "message": "Vault unlocked",
+            "mapping_count": app_state.hoeilaart_vault.mapping_count,
+        }
+    else:
+        app_state.add_log("warning", "Hoeilaart unlock failed", "Invalid passphrase")
+        raise HTTPException(status_code=401, detail="Invalid passphrase")
+
+
+@app.post("/api/hoeilaart/lock")
+async def lock_hoeilaart_vault():
+    """Lock the Hoeilaart vault (clear from memory)."""
+    if app_state.hoeilaart_vault:
+        app_state.hoeilaart_vault.lock()
+        app_state._hoeilaart_passphrase = None
+        app_state.add_log("info", "Hoeilaart vault locked", "Mappings cleared from memory")
+    
+    return {"success": True, "message": "Vault locked"}
+
+
+@app.get("/api/hoeilaart/resolve/{pseudo_id}")
+async def resolve_hoeilaart_mapping(pseudo_id: str):
+    """
+    Resolve a Hoeilaart pseudonym ID to real patient data.
+    Returns: insz, familienaam, voornaam, email
+    """
+    if not app_state.hoeilaart_vault:
+        raise HTTPException(status_code=500, detail="Hoeilaart vault not initialized")
+    
+    if not app_state.hoeilaart_vault.is_unlocked:
+        raise HTTPException(status_code=400, detail="Hoeilaart vault is locked")
+    
+    mapping = app_state.hoeilaart_vault.resolve(pseudo_id)
+    
+    if mapping:
+        return {
+            "found": True,
+            "pseudo_id": pseudo_id,
+            "mapping": mapping,
+        }
+    
+    return {
+        "found": False,
+        "pseudo_id": pseudo_id,
+        "mapping": None,
+    }
+
+
+@app.post("/api/hoeilaart/resolve-batch")
+async def resolve_hoeilaart_batch(request: Request):
+    """
+    Resolve multiple Hoeilaart pseudonym IDs at once.
+    Optimized for bulk operations to reduce round-trips.
+    """
+    if not app_state.hoeilaart_vault:
+        raise HTTPException(status_code=500, detail="Hoeilaart vault not initialized")
+    
+    if not app_state.hoeilaart_vault.is_unlocked:
+        raise HTTPException(status_code=400, detail="Hoeilaart vault is locked")
+    
+    data = await request.json()
+    pseudo_ids = data.get("pseudo_ids", [])
+    
+    if not pseudo_ids:
+        return {"mappings": {}, "found_count": 0}
+    
+    # Limit batch size to prevent abuse
+    if len(pseudo_ids) > 500:
+        pseudo_ids = pseudo_ids[:500]
+    
+    mappings = app_state.hoeilaart_vault.resolve_batch(pseudo_ids)
+    
+    return {
+        "mappings": mappings,
+        "found_count": len(mappings),
+        "requested_count": len(pseudo_ids),
+    }
+
+
+@app.delete("/api/hoeilaart/clear")
+async def clear_hoeilaart_vault():
+    """Clear the Hoeilaart vault completely (requires re-setup)."""
+    if app_state.hoeilaart_vault:
+        app_state.hoeilaart_vault.clear()
+        app_state._hoeilaart_passphrase = None
+        app_state.add_log("info", "Hoeilaart vault cleared", "All Hoeilaart mappings removed")
+    
+    return {"success": True, "message": "Hoeilaart vault cleared"}
 
 
 # ============================================================================
