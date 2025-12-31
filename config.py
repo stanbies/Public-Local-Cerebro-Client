@@ -7,7 +7,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 # Application version - update this for each release
-VERSION = "1.0.1"
+VERSION = "1.0.2"
 
 
 @dataclass
